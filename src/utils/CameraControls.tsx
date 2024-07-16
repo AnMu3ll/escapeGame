@@ -1,26 +1,30 @@
-import * as THREE from 'three'
+import * as THREE from 'three';
 
-const SPEED = 5
-const ROTATION_SPEED = 0.002
-const TIME_DELTA = 0.1
+const SPEED = 5;
+const ROTATION_SPEED = 0.002;
+const TIME_DELTA = 0.1;
 
 export class CameraControls {
-    move: { left: boolean; right: boolean, forward: boolean, backward: boolean }
+    move: { left: boolean; right: boolean; forward: boolean; backward: boolean };
     velocity: THREE.Vector3;
     direction: THREE.Vector3;
     speed: number;
-    camera: any;
-    domElement: any;
+    camera: THREE.PerspectiveCamera;
+    domElement: HTMLElement;
     rotationSpeed: number;
-    constructor(camera: any, domElement: any) {
-        this.camera = camera
+    roomWalls: THREE.Mesh[];
+
+    constructor(camera: THREE.PerspectiveCamera, domElement: HTMLElement, roomWalls: THREE.Mesh[]) {
+        this.camera = camera;
         this.domElement = domElement;
-        this.move = { left: false, right: false, forward: false, backward: false }
-        this.velocity = new THREE.Vector3()
-        this.direction = new THREE.Vector3()
-        this.speed = SPEED
-        this.rotationSpeed = ROTATION_SPEED
-        this.initEventListeners()
+        this.move = { left: false, right: false, forward: false, backward: false };
+        this.velocity = new THREE.Vector3();
+        this.direction = new THREE.Vector3();
+        this.speed = SPEED;
+        this.rotationSpeed = ROTATION_SPEED;
+        this.roomWalls = roomWalls; // Array of room walls to check collision against
+
+        this.initEventListeners();
     }
 
     private initEventListeners() {
@@ -70,6 +74,7 @@ export class CameraControls {
                 break;
         }
     }
+
     private onMouseMove(event: MouseEvent) {
         const movementX = event.movementX || 0;
         const movementY = event.movementY || 0;
@@ -90,7 +95,27 @@ export class CameraControls {
         if (this.move.forward || this.move.backward) this.velocity.z -= this.direction.z * this.speed * TIME_DELTA;
         if (this.move.left || this.move.right) this.velocity.x -= this.direction.x * this.speed * TIME_DELTA;
 
+        // Save current camera position
+        const originalPosition = this.camera.position.clone();
+
+        // Move the camera
         this.camera.translateX(this.velocity.x * TIME_DELTA);
         this.camera.translateZ(this.velocity.z * TIME_DELTA);
+
+        // Check for collision with walls
+        if (this.roomWalls.length > 0) {
+            const cameraBox = new THREE.Box3().setFromObject(this.camera);
+
+            for (let wall of this.roomWalls) {
+                wall.geometry.computeBoundingBox();
+                const wallBox = wall.geometry.boundingBox!.clone().translate(wall.position);
+
+                if (cameraBox.intersectsBox(wallBox)) {
+                    // Collision detected, reset camera position
+                    this.camera.position.copy(originalPosition);
+                    break;
+                }
+            }
+        }
     }
 }
